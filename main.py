@@ -1,7 +1,11 @@
+from pypdf import PdfReader
 import boto3
 
+reader = PdfReader("sample.pdf")
+page = reader.pages[0]
+text  = page.extract_text()
+
 polly = boto3.client("polly", region_name="eu-west-2")  # pick your region
-text = "This is a short demo of the Amazon Polly written in Python"
 
 response = polly.synthesize_speech(
     Text=text,
