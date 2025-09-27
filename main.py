@@ -1,20 +1,31 @@
 from pypdf import PdfReader
-import boto3, html
+import boto3, html, re
 
-pdf = "RainStory.pdf"
+pdf = "LittleHedgehogStory.pdf"
 reader = PdfReader(pdf)
 
 if reader.is_encrypted and reader.decrypt("") == 0:
     raise ValueError("PDF is encrypted and needs a password.")
 
-def norm(text: str) -> str:
-    return html.escape((text or "").strip())
+def clean_for_ssml(s: str) -> str:
+    if not s:
+        return ""
+    # de-hyphenate line wraps like "environ-\nment" -> "environment"
+    s = re.sub(r"(\w)-\n(\w)", r"\1\2", s)
+    # single newlines (line wraps) -> space; preserve paragraph breaks (\n\n)
+    s = re.sub(r"(?<!\n)\n(?!\n)", " ", s)
+    # collapse multiple spaces
+    s = re.sub(r"[ \t\f\v]+", " ", s)
+    # remove any remaining isolated artifact tokens
+    s = re.sub(r"\btext(?:e)?\b", "", s, flags=re.IGNORECASE)
+    return html.escape(s.strip())
 
-pages = reader.pages[3:25]
+pages = reader.pages[2:9]
 
 parts = []
 for idx, p in enumerate(pages, start=1):
-    page_text = norm(p.extract_text())
+    raw = p.extract_text()  
+    page_text = clean_for_ssml(raw)
     if not page_text:
         continue
     parts.append(f"<p>{page_text}</p>")
@@ -22,6 +33,7 @@ for idx, p in enumerate(pages, start=1):
         parts.append("<break time='0.5s'/>")
 
 ssml = f"<speak>{''.join(parts)}</speak>"
+print(ssml)
 
 polly = boto3.client("polly", region_name="eu-west-2") 
 
@@ -33,5 +45,5 @@ response = polly.synthesize_speech(
     Engine="neural"           
 )
 
-with open("rainstory.mp3", "wb") as f:
+with open("hedgehog.mp3", "wb") as f:
     f.write(response["AudioStream"].read())
