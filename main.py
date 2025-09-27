@@ -1,24 +1,33 @@
 from pypdf import PdfReader
-import boto3
+import boto3, html
 
 pdf = "RainStory.pdf"
 reader = PdfReader(pdf)
 
-if reader.is_encrypted:
-    if reader.decrypt("") == 0:
-        raise ValueError("PDF is encrypted and needs a password.")
-    
-num_of_pages = len(reader.pages)
-pages = reader.pages
+if reader.is_encrypted and reader.decrypt("") == 0:
+    raise ValueError("PDF is encrypted and needs a password.")
 
-text = ""
-for p in pages[3:25]:
-    text += "".join(p.extract_text())
+def norm(text: str) -> str:
+    return html.escape((text or "").strip())
 
-polly = boto3.client("polly", region_name="eu-west-2")  # pick your region
+pages = reader.pages[3:25]
+
+parts = []
+for idx, p in enumerate(pages, start=1):
+    page_text = norm(p.extract_text())
+    if not page_text:
+        continue
+    parts.append(f"<p>{page_text}</p>")
+    if idx != len(pages):  # no pause after the last page
+        parts.append("<break time='0.5s'/>")
+
+ssml = f"<speak>{''.join(parts)}</speak>"
+
+polly = boto3.client("polly", region_name="eu-west-2") 
 
 response = polly.synthesize_speech(
-    Text=text,
+    Text=ssml,
+    TextType="ssml",
     OutputFormat="mp3",       
     VoiceId="Amy",            # e.g., en-GB: Amy, Emma, Brian
     Engine="neural"           
