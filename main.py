@@ -1,8 +1,10 @@
 from pypdf import PdfReader
 import boto3, html, re
 
-pdf = "LittleHedgehogStory.pdf"
-reader = PdfReader(pdf)
+PDF = "LittleHedgehogStory.pdf" # change PDF 
+reader = PdfReader(PDF)
+PAGES = reader.pages[2:9] # change which pages user wants
+
 
 if reader.is_encrypted and reader.decrypt("") == 0:
     raise ValueError("PDF is encrypted and needs a password.")
@@ -20,20 +22,17 @@ def clean_for_ssml(s: str) -> str:
     s = re.sub(r"\btext(?:e)?\b", "", s, flags=re.IGNORECASE)
     return html.escape(s.strip())
 
-pages = reader.pages[2:9]
-
 parts = []
-for idx, p in enumerate(pages, start=1):
+for idx, p in enumerate(PAGES, start=1):
     raw = p.extract_text()  
     page_text = clean_for_ssml(raw)
     if not page_text:
         continue
     parts.append(f"<p>{page_text}</p>")
-    if idx != len(pages):  # no pause after the last page
+    if idx != len(PAGES):  # no pause after the last page
         parts.append("<break time='0.5s'/>")
 
 ssml = f"<speak>{''.join(parts)}</speak>"
-print(ssml)
 
 polly = boto3.client("polly", region_name="eu-west-2") 
 
